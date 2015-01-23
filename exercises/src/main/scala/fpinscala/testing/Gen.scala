@@ -21,13 +21,21 @@ object Prop {
 }
 
 object Gen {
-  def unit[A](a: => A): Gen[A] = ???
-}
+  def unit[A](a: => A): Gen[A] = Gen(State.unit(a))
 
-trait Gen[A] {
+  def int: State[RNG, Int] = State(_.nextInt)
+
+  def positiveInt: State[RNG, Int] =
+    int.flatMap(i => if (i == Integer.MIN_VALUE) positiveInt else State.unit(i))
+
+  def choose(start: Int, stopExclusive: Int): Gen[Int] =
+    Gen(positiveInt.map(i => start + i%(stopExclusive - start)))
+}
+case class Gen[A](sample: State[RNG,A]) {
   def map[A,B](f: A => B): Gen[B] = ???
   def flatMap[A,B](f: A => Gen[B]): Gen[B] = ???
 }
+
 
 trait SGen[+A] {
 
