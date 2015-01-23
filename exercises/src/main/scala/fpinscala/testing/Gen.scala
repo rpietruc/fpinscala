@@ -79,6 +79,16 @@ object Prop {
       case None =>
         println(s"+ OK, passed $testCases tests.")
     }
+
+  val S = weighted(
+    choose(1,4).map(Executors.newFixedThreadPool) -> .75,
+    unit(Executors.newCachedThreadPool) -> .25)
+
+  def forAllPar[A](g: Gen[A])(f: A => Par[Boolean]): Prop =
+    forAll(S ** g) { case s ** a => f(a)(s).get } // forAll(S.map2(g)((_,_))) { case (s,a) => f(a)(s).get }
+
+  def checkPar(p: Par[Boolean]): Prop =
+    forAllPar(Gen.unit(()))(_ => p)
 }
 
 object Gen {
@@ -88,6 +98,16 @@ object Gen {
 
   def positiveInt: State[RNG, Int] =
     int.flatMap(i => if (i == Integer.MIN_VALUE) positiveInt else State.unit(i))
+
+  def boolean: Gen[Boolean] =
+    Gen(int.map(i => i >= 0))
+
+  def double: Gen[Double] =
+    Gen(positiveInt).map(i => i.toDouble/Int.MaxValue.toDouble)
+
+  def boolean(falseWeight: Double, trueWeight: Double): Gen[Boolean] = {
+    double.map(d => (d > falseWeight/(falseWeight + trueWeight)))
+  }
 
   def choose(start: Int, stopExclusive: Int): Gen[Int] =
     Gen(positiveInt.map(i => start + i % (stopExclusive - start)))
@@ -107,14 +127,30 @@ object Gen {
 
   def check(p: => Boolean): Prop =
     forAll(unit(()))(_ => p)
+
+  def weighted[A](g1: (Gen[A],Double), g2: (Gen[A],Double)): Gen[A] =
+    boolean(g1._2, g2._2).map3(g1._1, g1._1)((b, a1, a2) => if (b) a1 else a2)
 }
 
 case class Gen[A](sample: State[RNG,A]) {
   def map[B](f: A => B): Gen[B] =
     Gen(sample.map(f))
 
+  def map2[B,C](sb: Gen[B])(f: (A, B) => C): Gen[C] =
+    Gen(sample.map2(sb.sample)(f))
+
+  def map3[B,C,D](sb: Gen[B], sc: Gen[C])(f: (A, B, C) => D): Gen[D] =
+    map2(sb)((a, b) => (a, b)).map2(sc){ case ((a,b), c) => f(a, b, c) }
+
   def flatMap[B](f: A => Gen[B]): Gen[B] =
     Gen(sample.flatMap(a => f(a).sample))
+
+  def **[B](g: Gen[B]): Gen[(A,B)] =
+    (this map2 g)((_,_))
+}
+
+object ** {
+  def unapply[A,B](p: (A,B)) = Some(p)
 }
 
 case class SGen[A](forSize: Int => Gen[A])

@@ -24,9 +24,27 @@ val ES: ExecutorService = Executors.newCachedThreadPool
 val p1 = Prop.forAll(Gen.unit(Par.unit(1)))( i =>
   Par.map(i)(_ + 1)(ES).get == Par.unit(2)(ES).get)
 
-val p2 = Gen.check {
+// val p2 =
+Gen.check {
   val p = Par.map(Par.unit(1))(_ + 1)
   val p2 = Par.unit(2)
   p(ES).get == p2(ES).get
 }
 
+val p2 = checkPar {
+  Par.equal (
+    Par.map(Par.unit(1))(_ + 1),
+    Par.unit(2)
+  )
+}
+
+val p3 = Gen.check {
+  Par.equal (
+    Par.map(Par.unit(1))(_ + 1),
+    Par.unit(2)
+  ) (ES) get
+}
+
+val pint = Gen.choose(0,10) map (Par.unit(_))
+val p4 =
+  forAllPar(pint)(n => Par.equal(Par.map(n)(y => y), n))
