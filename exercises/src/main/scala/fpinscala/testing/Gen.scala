@@ -27,6 +27,9 @@ object Prop {
   type SuccessCount = Int
   type Result = Option[(FailedCase, SuccessCount)]
 
+  def listOf[A](g: Gen[A]): SGen[List[A]] =
+    SGen((n: Int) => Gen.listOfN(n, g))
+
   def forAll[A](g: SGen[A])(f: A => Boolean): Prop =
     forAll(g.forSize)(f)
 
@@ -67,6 +70,14 @@ object Gen {
 
   def choose(start: Int, stopExclusive: Int): Gen[Int] =
     Gen(positiveInt.map(i => start + i % (stopExclusive - start)))
+
+  def listOfN[A](n: Int, g: Gen[A]): Gen[List[A]] =
+    if (n <= 0)
+      Gen(State.unit(List[A]()))
+    else {
+      val lg = listOfN(n - 1, g)
+      Gen(g.sample.map2(lg.sample)(_ :: _))
+    }
 
   def forAll[A](as: Gen[A])(f: A => Boolean): Prop = Prop {
     (max, n, rng) => randomStream(as)(rng).zip(Stream.from(0)).take(n).map {
