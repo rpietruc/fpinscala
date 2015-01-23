@@ -27,9 +27,6 @@ object Prop {
   type SuccessCount = Int
   type Result = Option[(FailedCase, SuccessCount)]
 
-  def listOf[A](g: Gen[A]): SGen[List[A]] =
-    SGen((n: Int) => Gen.listOfN(n, g))
-
   def forAll[A](g: SGen[A])(f: A => Boolean): Prop =
     forAll(g.forSize)(f)
 
@@ -44,6 +41,12 @@ object Prop {
         }).toList.reduceLeft(_ && _)
       prop.run(max, n, rng)
   }
+
+  def listOf[A](g: Gen[A]): SGen[List[A]] =
+    SGen((n: Int) => Gen.listOfN(n, g))
+
+  def listOf1[A](g: Gen[A]): SGen[List[A]] =
+    SGen((n: Int) => Gen.listOfN(n + 1, g))
 
   def or[A](o1: Option[A], o2: Option[A]): Option[A] = o1 match {
     case None => o2
@@ -105,9 +108,11 @@ object Gen {
 }
 
 case class Gen[A](sample: State[RNG,A]) {
-  def map[A, B](f: A => B): Gen[B] = ???
+  def map[B](f: A => B): Gen[B] =
+    Gen(sample.map(f))
 
-  def flatMap[A, B](f: A => Gen[B]): Gen[B] = ???
+  def flatMap[B](f: A => Gen[B]): Gen[B] =
+    Gen(sample.flatMap(a => f(a).sample))
 }
 
 case class SGen[A](forSize: Int => Gen[A])

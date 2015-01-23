@@ -58,19 +58,28 @@ object RNG {
 }
 
 case class State[S,+A](run: S => (A, S)) {
-  def map[B](f: A => B): State[S,B] =
+
+  def map[B](f: A => B): State[S, B] =
     State(
       s => {
         val (a, ss) = run(s)
         (f(a), ss)
       }
     )
-  def map2[B,C](sb: State[S, B])(f: (A, B) => C): State[S, C] =
-    sys.error("todo")
-  def flatMap[B](f: A => State[S,B]): State[S,B] =
+
+  def map2[B, C](other: State[S, B])(f: (A, B) => C): State[S, C] =
     State(
       s => {
-        val (a,ss) = run(s)
+        val (a, s1) = run(s)
+        val (b, s2) = other.run(s1)
+        (f(a, b), s2)
+      }
+    )
+
+  def flatMap[B](f: A => State[S, B]): State[S, B] =
+    State(
+      s => {
+        val (a, ss) = run(s)
         f(a).run(ss)
       }
     )
