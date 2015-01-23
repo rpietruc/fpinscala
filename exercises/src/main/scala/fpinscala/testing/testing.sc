@@ -19,5 +19,14 @@ val sortedProp = forAll(listOf1(smallInt)) {
 }
 
 run(sortedProp)
-
 Gen.unit(1).map(_ + 1) == Gen.unit(2)
+val ES: ExecutorService = Executors.newCachedThreadPool
+val p1 = Prop.forAll(Gen.unit(Par.unit(1)))( i =>
+  Par.map(i)(_ + 1)(ES).get == Par.unit(2)(ES).get)
+
+val p2 = Gen.check {
+  val p = Par.map(Par.unit(1))(_ + 1)
+  val p2 = Par.unit(2)
+  p(ES).get == p2(ES).get
+}
+

@@ -27,6 +27,16 @@ object Prop {
   type SuccessCount = Int
   type Result = Option[(FailedCase, SuccessCount)]
 
+  def forAll[A](as: Gen[A])(f: A => Boolean): Prop = Prop {
+    (max, n, rng) => randomStream(as)(rng).zip(Stream.from(0)).take(n).map {
+      case (a, i) => try {
+        if (f(a)) None else Some((a.toString, i))
+      } catch {
+        case e: Exception => Some((buildMsg(a, e), i))
+      }
+    }.find(_.isDefined).getOrElse(None)
+  }
+
   def forAll[A](g: SGen[A])(f: A => Boolean): Prop =
     forAll(g.forSize)(f)
 
@@ -34,7 +44,7 @@ object Prop {
     (max, n, rng) =>
       val casesPerSize = (n + (max - 1)) / max
       val props: Stream[Prop] =
-        Stream.from(0).take((n min max) + 1).map(i => Gen.forAll(g(i))(f))
+        Stream.from(0).take((n min max) + 1).map(i => forAll(g(i))(f))
       val prop: Prop =
         props.map(p => Prop { (max, _, rng) =>
           p.run(max, casesPerSize, rng)
@@ -90,21 +100,13 @@ object Gen {
       Gen(g.sample.map2(lg.sample)(_ :: _))
     }
 
-  def forAll[A](as: Gen[A])(f: A => Boolean): Prop = Prop {
-    (max, n, rng) => randomStream(as)(rng).zip(Stream.from(0)).take(n).map {
-      case (a, i) => try {
-        if (f(a)) None else Some((a.toString, i))
-      } catch {
-        case e: Exception => Some((buildMsg(a, e), i))
-      }
-    }.find(_.isDefined).getOrElse(None)
-  }
-
   def buildMsg[A](s: A, e: Exception): String =
     s"test case: $s\n" +
       s"generated an exception: ${e.getMessage}\n" +
       s"stack trace:\n ${e.getStackTrace.mkString("\n")}"
 
+  def check(p: => Boolean): Prop =
+    forAll(unit(()))(_ => p)
 }
 
 case class Gen[A](sample: State[RNG,A]) {
