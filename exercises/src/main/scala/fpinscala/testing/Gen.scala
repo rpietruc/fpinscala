@@ -58,6 +58,14 @@ object Prop {
   /* Produce an infinite random stream from a `Gen` and a starting `RNG`. */
   def randomStream[A](g: Gen[A])(rng: RNG): Stream[A] =
     Stream.unfold(rng)(rng => Some(g.sample.run(rng)))
+
+  def run(p: Prop, maxSize: Int = 100, testCases: Int = 100, rng: RNG = RNG.Simple(System.currentTimeMillis)): Unit =
+    p.run(maxSize, testCases, rng) match {
+      case Some((msg, n)) =>
+        println(s"! Falsified after $n passed tests:\n $msg")
+      case None =>
+        println(s"+ OK, passed $testCases tests.")
+    }
 }
 
 object Gen {
