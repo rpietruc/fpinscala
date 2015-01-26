@@ -2,6 +2,8 @@ package fpinscala.monoids
 
 import fpinscala.parallelism.Nonblocking._
 import fpinscala.parallelism.Nonblocking.Par.toParOps // infix syntax for `Par.map`, `Par.flatMap`, etc
+import fpinscala.datastructures._
+import fpinscala.testing.Prop
 
 trait Monoid[A] {
   def op(a1: A, a2: A): A
@@ -16,40 +18,67 @@ object Monoid {
   }
 
   def listMonoid[A] = new Monoid[List[A]] {
-    def op(a1: List[A], a2: List[A]) = a1 ++ a2
+    def op(a1: List[A], a2: List[A]) = List.append(a1, a2)
     val zero = Nil
   }
 
-  val intAddition: Monoid[Int] = sys.error("todo")
+  val intAddition: Monoid[Int] = new Monoid[Int] {
+    def op(i1: Int, i2: Int) = i1 + i2
+    val zero = 0
+  }
 
-  val intMultiplication: Monoid[Int] = sys.error("todo")
+  val intMultiplication: Monoid[Int] = new Monoid[Int] {
+    def op(i1: Int, i2: Int) = i1 * i2
+    val zero = 1
+  }
 
-  val booleanOr: Monoid[Boolean] = sys.error("todo")
+  val booleanOr: Monoid[Boolean] = new Monoid[Boolean] {
+    def op(b1: Boolean, b2: Boolean) = b1 || b2
+    val zero = false
+  }
 
-  val booleanAnd: Monoid[Boolean] = sys.error("todo")
+  val booleanAnd: Monoid[Boolean] = new Monoid[Boolean] {
+    def op(b1: Boolean, b2: Boolean) = b1 && b2
+    val zero = true
+  }
 
-  def optionMonoid[A]: Monoid[Option[A]] = sys.error("todo")
+  def optionMonoid[A]: Monoid[Option[A]] = new Monoid[Option[A]] {
+    def op(o1: Option[A], o2: Option[A]) = o1 orElse o2
+    val zero = None
+  }
 
-  def endoMonoid[A]: Monoid[A => A] = sys.error("todo")
+  def endoMonoid[A]: Monoid[A => A] = new Monoid[A => A] {
+    def op(f: A => A, g: A => A) = f andThen g
+    val zero: A => A = a => a
+  }
 
   // TODO: Placeholder for `Prop`. Remove once you have implemented the `Prop`
   // data type from Part 2.
-  trait Prop {}
+//  trait Prop {}
 
   // TODO: Placeholder for `Gen`. Remove once you have implemented the `Gen`
   // data type from Part 2.
 
   import fpinscala.testing._
   import Prop._
-  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = sys.error("todo")
+  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop =
+    forAll(Gen.listOfN(3, gen)) {
+      case a1 :: a2 :: a3 :: t => m.op(m.op(a1, a2), a3) == m.op(a1, m.op(a2, a3))
+      case _ => true
+    }
+      .&&(forAll(gen)(a => m.op(a, m.zero) == a))
+      .&&(forAll(gen)(a => m.op(m.zero, a) == a))
 
-  def trimMonoid(s: String): Monoid[String] = sys.error("todo")
+  def trimMonoid/*(s: String)*/: Monoid[String] = new Monoid[String] {
+    def op(s1: String, s2: String) = s1.trim ++ " " ++ s2.trim
+    val zero = ""
+  }
 
   def concatenate[A](as: List[A], m: Monoid[A]): A =
-    sys.error("todo")
+    List.foldLeft(as, m.zero)(m.op(_, _))
 
   def foldMap[A, B](as: List[A], m: Monoid[B])(f: A => B): B =
-    sys.error("todo")
+    List.foldLeft(as, m.zero)((z, a) => m.op(z, f(a)))
 
   def foldRight[A, B](as: List[A])(z: B)(f: (A, B) => B): B =
     sys.error("todo")
@@ -58,10 +87,19 @@ object Monoid {
     sys.error("todo")
 
   def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B =
-    sys.error("todo")
+    if (as.size >= 2) {
+      val (as1, as2) = as.splitAt(as.size / 2)
+      m.op(foldMapV(as1, m)(f), foldMapV(as2, m)(f))
+    } else if (as.size > 0) {
+      f(as.head)
+    } else m.zero
 
   def ordered(ints: IndexedSeq[Int]): Boolean =
-    sys.error("todo")
+    foldMapV(ints, new Monoid[(Int, Boolean)] {
+      def op(a1: (Int, Boolean), a2: (Int, Boolean)) =
+        (Math.max(a1._1, a2._1), (a1._1 <= a2._1) && a1._2 && a2._2)
+      val zero = (Integer.MIN_VALUE, true)
+    })(i => (i, true))._2
 
   sealed trait WC
   case class Stub(chars: String) extends WC

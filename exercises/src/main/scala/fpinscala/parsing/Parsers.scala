@@ -1,9 +1,8 @@
 package fpinscala.parsing
 
 import java.util.regex._
-import fpinscala.datastructures.List
-import fpinscala.errorhandling.Either
-
+import fpinscala.datastructures._
+import fpinscala.errorhandling._
 import scala.util.matching.Regex
 import fpinscala.testing._
 import fpinscala.testing.Prop._
@@ -19,7 +18,7 @@ trait Parsers[Parser[+_]] {
   implicit def char(c: Char): Parser[Char] =
     string(c.toString).map(_.charAt(0))
 
-  def or[A](s1: Parser[A], s2: Parser[A]): Parser[A]
+  def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A]
 
   implicit def string(s: String): Parser[String]
 
@@ -27,24 +26,45 @@ trait Parsers[Parser[+_]] {
 
   implicit def asStringParser[A](a: A)(implicit f: A => Parser[String]): ParserOps[String] = ParserOps(f(a))
 
-  def listOfN[A](n: Int, p: Parser[A]): Parser[List[A]]
+  def map[A, B](p: Parser[A])(f: A => B): Parser[B] =
+    p.flatMap(a => succeed(a).map(b => f(b)))
 
-  def slice[A](p: Parser[A]): Parser[String]
+  def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B]
 
-  def map[A, B](p: Parser[A])(f: A => B): Parser[B]
-
-  def map2[A, B, C](p1: Parser[A], p2: Parser[B])(f: (A, B) => C): Parser[C]
-
-  def many[A](p: Parser[A]): Parser[List[A]]
+  def map2[A, B, C](p1: Parser[A], p2: => Parser[B])(f: (A, B) => C): Parser[C] =
+  //    map(product(p1, p2))(f.tupled)
+    for {a <- p1; b <- p2} yield f(a, b) // p1.flatMap(a => p2.map(b => f(a, b)))
 
   def succeed[A](a: A): Parser[A] =
     string("").map(_ => a)
 
-  def product[A, B](p: Parser[A], p2: Parser[B]): Parser[(A, B)]
+  def many[A](p: Parser[A]): Parser[List[A]] =
+    or(map2(p, many(p))(Cons(_, _)), succeed(List()))
+
+  def product[A, B](p: Parser[A], p2: => Parser[B]): Parser[(A, B)] =
+    for {a <- p; b <- p2} yield (a, b) // p1.flatMap(a => p2.map(b => (a, b)))
+
+  def many1[A](p: Parser[A]): Parser[List[A]] =
+    product(p, many(p)).map { case (a, l) => Cons(a, l)}
+
+  def listOfN[A](n: Int, p: Parser[A]): Parser[List[A]] =
+    if (n <= 0)
+      succeed(List())
+    else
+      map2(p, listOfN(n - 1, p)) { case (a, l) => Cons(a, l)}
+
+  def slice[A](p: Parser[A]): Parser[String]
+
+  implicit def regex(r: Regex): Parser[String]
+
+  def label[A](msg: String)(p: Parser[A]): Parser[A]
+
+  def scope[A](msg: String)(p: Parser[A]): Parser[A]
+
+  def attempt[A](p: Parser[A]): Parser[A]
 
   case class ParserOps[A](p: Parser[A]) {
-
-    def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
+    def |[B >: A](p2: => Parser[B]): Parser[B] = self.or(p, p2)
 
     def or[B >: A](p2: => Parser[B]): Parser[B] = self.or(p, p2)
 
@@ -56,10 +76,17 @@ trait Parsers[Parser[+_]] {
 
     def many[B >: A]: Parser[List[B]] = self.many(p)
 
+    def many1[B >: A]: Parser[List[B]] = self.many1(p)
+
     def **[B](p2: Parser[B]): Parser[(A, B)] = self.product(p, p2)
 
     def product[B](p2: => Parser[B]): Parser[(A, B)] = self.product(p, p2)
 
+    def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
+
+    def label(msg: String): Parser[A] = self.label(msg)(p)
+
+    def scope(msg: String): Parser[A] = self.scope(msg)(p)
   }
 
   object Laws {
@@ -74,8 +101,8 @@ trait Parsers[Parser[+_]] {
 
 case class Location(input: String, offset: Int = 0) {
 
-  lazy val line = input.slice(0,offset+1).count(_ == '\n') + 1
-  lazy val col = input.slice(0,offset+1).reverse.indexOf('\n')
+  lazy val line = input.slice(0, offset + 1).count(_ == '\n') + 1
+  lazy val col = if (line > 1) input.slice(0, offset + 1).reverse.indexOf('\n') else offset
 
   def toError(msg: String): ParseError =
     ParseError(List((this, msg)))
