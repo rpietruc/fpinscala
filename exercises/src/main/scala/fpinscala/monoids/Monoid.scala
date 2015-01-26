@@ -140,14 +140,21 @@ object Monoid {
     }
   }
 
-  def productMonoid[A,B](A: Monoid[A], B: Monoid[B]): Monoid[(A, B)] =
-    sys.error("todo")
+  def productMonoid[A,B](A: Monoid[A], B: Monoid[B]): Monoid[(A, B)] = new Monoid[(A, B)] {
+    def op(p1: (A, B), p2: (A, B)): (A, B) = (A.op(p1._1, p2._1), B.op(p1._2, p2._2))
+    val zero = (A.zero, B.zero)
+  }
 
-  def functionMonoid[A,B](B: Monoid[B]): Monoid[A => B] =
-    sys.error("todo")
+  def functionMonoid[A,B](B: Monoid[B]): Monoid[A => B] = new Monoid[A => B] {
+      def op(f: A => B, g: A => B): A => B = a => B.op(f(a), g(a))
+      val zero: A => B = _ => B.zero
+    }
+  def mapMergeMonoid[K,V](V: Monoid[V]): Monoid[Map[K, V]] = new Monoid[Map[K, V]] {
+    def op(m1: Map[K, V], m2: Map[K, V]): Map[K, V] =
+      (m1.keySet ++ m2.keySet).map(e => (e, V.op(m1.getOrElse(e, V.zero), m2.getOrElse(e, V.zero)))).toMap
 
-  def mapMergeMonoid[K,V](V: Monoid[V]): Monoid[Map[K, V]] =
-    sys.error("todo")
+    val zero: Map[K, V] = Map()
+  }
 
   def bag[A](as: IndexedSeq[A]): Map[A, Int] =
     sys.error("todo")
