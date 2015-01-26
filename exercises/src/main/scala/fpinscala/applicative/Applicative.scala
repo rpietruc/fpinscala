@@ -122,8 +122,8 @@ trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
       _  <- set(s2)
     } yield b)).run(s)
 
-  override def toList[A](fa: F[A]): List[A] =
-    mapAccum(fa, List[A]())((a, s) => ((), a :: s))._2.reverse
+//  override def toList[A](fa: F[A]): List[A] =
+//    mapAccum(fa, List[A]())((a, s) => ((), a :: s))._2.reverse
 
   def zipWithIndex[A](fa: F[A]): F[(A, Int)] =
     mapAccum(fa, 0)((a, s) => ((a, s), s + 1))._1
