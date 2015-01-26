@@ -157,7 +157,7 @@ object Monoid {
   }
 
   def bag[A](as: IndexedSeq[A]): Map[A, Int] =
-    sys.error("todo")
+    foldMapV(as, mapMergeMonoid[A, Int](intAddition))(a => Map(a -> 1))
 }
 
 trait Foldable[F[_]] {
@@ -170,13 +170,13 @@ trait Foldable[F[_]] {
     sys.error("todo")
 
   def foldMap[A, B](as: F[A])(f: A => B)(mb: Monoid[B]): B =
-    sys.error("todo")
+    foldLeft(as)(mb.zero)((z, a) => mb.op(z, f(a)))
 
   def concatenate[A](as: F[A])(m: Monoid[A]): A =
-    sys.error("todo")
+    foldLeft(as)(m.zero)(m.op)
 
   def toList[A](as: F[A]): List[A] =
-    sys.error("todo")
+    foldMap(as)(a => List(a))(listMonoid)
 }
 
 object ListFoldable extends Foldable[List] {
@@ -209,20 +209,36 @@ case class Leaf[A](value: A) extends Tree[A]
 case class Branch[A](left: Tree[A], right: Tree[A]) extends Tree[A]
 
 object TreeFoldable extends Foldable[Tree] {
-  override def foldMap[A, B](as: Tree[A])(f: A => B)(mb: Monoid[B]): B =
-    sys.error("todo")
-  override def foldLeft[A, B](as: Tree[A])(z: B)(f: (B, A) => B) =
-    sys.error("todo")
-  override def foldRight[A, B](as: Tree[A])(z: B)(f: (A, B) => B) =
-    sys.error("todo")
+  override def foldMap[A, B](as: Tree[A])(f: A => B)(mb: Monoid[B]): B = as match {
+    case Leaf(a) => f(a)
+    case Branch(l, r) => mb.op(foldMap(l)(f)(mb), foldMap(r)(f)(mb))
+  }
+
+  override def foldLeft[A, B](as: Tree[A])(z: B)(f: (B, A) => B) = as match {
+    case Leaf(a) => f(z, a)
+    case Branch(l, r) => foldLeft(r)(foldLeft(l)(z)(f))(f) // l(r) or r(l) ???
+  }
+
+  override def foldRight[A, B](as: Tree[A])(z: B)(f: (A, B) => B) = as match {
+    case Leaf(a) => f(a, z)
+    case Branch(l, r) => foldRight(l)(foldRight(r)(z)(f))(f) // l(r) or r(l) ???
+  }
 }
 
 object OptionFoldable extends Foldable[Option] {
-  override def foldMap[A, B](as: Option[A])(f: A => B)(mb: Monoid[B]): B =
-    sys.error("todo")
-  override def foldLeft[A, B](as: Option[A])(z: B)(f: (B, A) => B) =
-    sys.error("todo")
-  override def foldRight[A, B](as: Option[A])(z: B)(f: (A, B) => B) =
-    sys.error("todo")
+  override def foldMap[A, B](as: Option[A])(f: A => B)(mb: Monoid[B]): B = as match {
+    case Some(a) => mb.op(f(a), f(a))
+    case _ => mb.zero
+  }
+
+  override def foldLeft[A, B](as: Option[A])(z: B)(f: (B, A) => B) = as match {
+    case Some(a) => f(z, a)
+    case _ => z
+  }
+
+  override def foldRight[A, B](as: Option[A])(z: B)(f: (A, B) => B) = as match {
+    case Some(a) => f(a, z)
+    case _ => z
+  }
 }
 
