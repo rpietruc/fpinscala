@@ -235,4 +235,3 @@ object Candy {
     s <- get
   } yield (s.coins, s.candies)
 }
-
