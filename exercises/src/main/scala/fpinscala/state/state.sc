@@ -14,6 +14,5 @@ val ((d4, d5, d6), rng9) = double3(rng8)
 val (l, rng10) = ints(3)(rng9)
 val ((i8, d7), rng11) = randIntDouble(rng10)
 val ((d8, i9), rng12) = randDoubleInt(rng11)
-nonNegativeLessThan(219)(rng12)
-//val (s, rng13) = sequence(List(nonNegativeEven, nonNegativeEven))(rng12)
-
+val (s, rng13) = sequence(List(nonNegativeEven, nonNegativeEven))(rng12)
+nonNegativeLessThan(219)(rng13)
