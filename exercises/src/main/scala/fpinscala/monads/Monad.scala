@@ -97,7 +97,16 @@ object Monad {
       ma flatMap f
   }
 
-  def stateMonad[S] = ???
+  def stateMonad[S] = {
+    type StateMonad[A] = State[S, A]
+
+    new Monad[StateMonad] {
+      def unit[A](a: => A): StateMonad[A] = State.unit(a)
+
+      override def flatMap[A, B](s: StateMonad[A])(f: A => StateMonad[B]): StateMonad[B] =
+        s flatMap f
+    }
+  }
 
   val idMonad: Monad[Id] = ???
 
