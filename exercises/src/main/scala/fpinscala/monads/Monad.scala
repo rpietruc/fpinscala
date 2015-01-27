@@ -4,7 +4,7 @@ package monads
 import parsing._
 import testing._
 import parallelism._
-import state._
+import fpinscala.state._
 import parallelism.Par._
 
 trait Functor[F[_]] {
@@ -59,68 +59,75 @@ trait Monad[M[_]] extends Functor[M] {
     join(map(ma)(f))
 }
 
-case class Reader[R, A](run: R => A)
-
 object Monad {
   val genMonad = new Monad[Gen] {
     def unit[A](a: => A): Gen[A] = Gen.unit(a)
-    override def flatMap[A,B](ma: Gen[A])(f: A => Gen[B]): Gen[B] =
+
+    override def flatMap[A, B](ma: Gen[A])(f: A => Gen[B]): Gen[B] =
       ma flatMap f
   }
 
   val parMonad: Monad[Par] = new Monad[Par] {
     def unit[A](a: => A): Par[A] = Par.unit(a)
-    override def flatMap[A,B](ma: Par[A])(f: A => Par[B]): Par[B] =
+
+    override def flatMap[A, B](ma: Par[A])(f: A => Par[B]): Par[B] =
       Par.flatMap(ma)(f)
   }
-  def parserMonad[P[+_]](p: Parsers[P]): Monad[P] =  new Monad[P] {
+
+  def parserMonad[P[+ _]](p: Parsers[P]): Monad[P] = new Monad[P] {
     def unit[A](a: => A): P[A] = p.succeed(a)
-    override def flatMap[A,B](ma: P[A])(f: A => P[B]): P[B] =
+
+    override def flatMap[A, B](ma: P[A])(f: A => P[B]): P[B] =
       p.flatMap(ma)(f)
   }
 
-  val optionMonad: Monad[Option] =  new Monad[Option] {
+  val optionMonad: Monad[Option] = new Monad[Option] {
     def unit[A](a: => A): Option[A] = Some(a)
-    override def flatMap[A,B](ma: Option[A])(f: A => Option[B]): Option[B] =
+
+    override def flatMap[A, B](ma: Option[A])(f: A => Option[B]): Option[B] =
       ma flatMap f
   }
 
-  val streamMonad: Monad[Stream] =  new Monad[Stream] {
+  val streamMonad: Monad[Stream] = new Monad[Stream] {
     def unit[A](a: => A): Stream[A] = Stream(a)
-    override def flatMap[A,B](ma: Stream[A])(f: A => Stream[B]): Stream[B] =
+
+    override def flatMap[A, B](ma: Stream[A])(f: A => Stream[B]): Stream[B] =
       ma flatMap f
   }
 
-  val listMonad: Monad[List] =  new Monad[List] {
+  val listMonad: Monad[List] = new Monad[List] {
     def unit[A](a: => A): List[A] = List(a)
-    override def flatMap[A,B](ma: List[A])(f: A => List[B]): List[B] =
+
+    override def flatMap[A, B](ma: List[A])(f: A => List[B]): List[B] =
       ma flatMap f
   }
 
-  def stateMonad[S] = {
-    type StateMonad[A] = State[S, A]
+  def stateMonad[S] = new Monad[({type StateMonad[A] = State[S, A]})#StateMonad] {
+    def unit[A](a: => A): State[S, A] = State(s => (a, s))
 
-    new Monad[StateMonad] {
-      def unit[A](a: => A): StateMonad[A] = State.unit(a)
-
-      override def flatMap[A, B](s: StateMonad[A])(f: A => StateMonad[B]): StateMonad[B] =
-        s flatMap f
-    }
+    override def flatMap[A, B](s: State[S, A])(f: A => State[S, B]): State[S, B] =
+      s flatMap f
   }
 
-  val idMonad: Monad[Id] = ???
+  val idMonad: Monad[Id] = new Monad[Id] {
+    def unit[A](a: => A): Id[A] = Id(a)
 
-  def readerMonad[R] = ???
+    override def flatMap[A, B](ma: Id[A])(f: A => Id[B]): Id[B] =
+      ma flatMap f
+  }
 }
 
 case class Id[A](value: A) {
-  def map[B](f: A => B): Id[B] = ???
-  def flatMap[B](f: A => Id[B]): Id[B] = ???
+  def map[B](f: A => B): Id[B] = Id(f(value))
+  def flatMap[B](f: A => Id[B]): Id[B] = f(value)
 }
+
+case class Reader[R, A](run: R => A)
 
 object Reader {
   def readerMonad[R] = new Monad[({type f[x] = Reader[R,x]})#f] {
-    def unit[A](a: => A): Reader[R,A] = ???
-    override def flatMap[A,B](st: Reader[R,A])(f: A => Reader[R,B]): Reader[R,B] = ???
+    def unit[A](a: => A): Reader[R,A] = Reader(_ => a)
+    override def flatMap[A,B](st: Reader[R,A])(f: A => Reader[R,B]): Reader[R,B] =
+      Reader(r => f(st.run(r)).run(r))
   }
 }
