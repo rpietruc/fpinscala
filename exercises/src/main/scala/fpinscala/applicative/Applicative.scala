@@ -7,6 +7,7 @@ import State._
 import StateUtil._ // defined at bottom of this file
 import monoids._
 import errorhandling._
+import datastructures._
 
 trait Applicative[F[_]] extends Functor[F] {
   def map2[A, B, C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] =
@@ -27,13 +28,13 @@ trait Applicative[F[_]] extends Functor[F] {
     map2(unit(f), fa)(_(_))
 
   def sequence[A](fas: List[F[A]]): F[List[A]] =
-    fas.foldRight(unit(List[A]()))((a, z) => map2(a, z)(_ :: _))
+    List.foldRight(fas, unit(List[A]()))((a, z) => map2(a, z)(Cons(_,_)))
 
-  def traverse[A, B](as: List[A])(f: A => F[B]): F[List[B]] =
-    as.foldRight(unit(List[B]()))((a, z) => map2(f(a), z)(_ :: _))
+  def traverse[A,B](as: List[A])(f: A => F[B]): F[List[B]] =
+    List.foldRight(as, unit(List[B]()))((a, z) => map2(f(a), z)(Cons(_,_)))
 
   def replicateM[A](n: Int, fa: F[A]): F[List[A]] =
-    traverse(Range(0, n).toList)(_ => fa)
+    traverse(List.fill(n)(0))(_ => fa)
 
   def factor[A, B](fa: F[A], fb: F[B]): F[(A, B)] =
     map2(fa, fb)((_, _))
@@ -194,9 +195,12 @@ trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
   def zipWithIndex[A](fa: F[A]): F[(A, Int)] =
     mapAccum(fa, 0)((a, s) => ((a, s), s + 1))._1
 
-  def reverse[A](fa: F[A]): F[A] = ???
+  def reverse[A](fa: F[A]): F[A] = mapAccum(fa, List.reversed(toList(fa))) {
+    case (a, Cons(h, t)) => (h, t)
+  }._1
 
-  override def foldLeft[A,B](fa: F[A])(z: B)(f: (B, A) => B): B = ???
+  override def foldLeft[A,B](fa: F[A])(z: B)(f: (B, A) => B): B =
+    mapAccum(fa, z)((a, z) => ((), f(z, a)))._2
 
   def fuse[G[_],H[_],A,B](fa: F[A])(f: A => G[B], g: A => H[B])
                          (implicit G: Applicative[G], H: Applicative[H]): (G[F[B]], H[F[B]]) = ???
