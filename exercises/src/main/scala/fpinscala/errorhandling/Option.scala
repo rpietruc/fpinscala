@@ -4,8 +4,10 @@ package fpinscala.errorhandling
 import scala.{Option => _, Some => _, Either => _, _} // hide std library `Option`, `Some` and `Either`, since we are writing our own in this chapter
 
 sealed trait Option[+A] {
-  def map[B](f: A => B): Option[B] = sys.error("todo")
-
+  def map[B](f: A => B): Option[B] = this match {
+    case Some(a) => Some(f(a))
+    case _ => None
+  }
   def getOrElse[B>:A](default: => B): B = sys.error("todo")
 
   def flatMap[B](f: A => Option[B]): Option[B] = sys.error("todo")
@@ -46,7 +48,10 @@ object Option {
     else Some(xs.sum / xs.length)
   def variance(xs: Seq[Double]): Option[Double] = sys.error("todo")
 
-  def map2[A,B,C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] = sys.error("todo")
+  def map2[A,B,C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] = (a, b) match {
+    case (Some(a), Some(b)) => Some(f(a, b))
+    case _ => None
+  }
 
   def sequence[A](a: List[Option[A]]): Option[List[A]] = sys.error("todo")
 

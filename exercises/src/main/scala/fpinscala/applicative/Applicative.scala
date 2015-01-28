@@ -6,6 +6,7 @@ import state._
 import State._
 import StateUtil._ // defined at bottom of this file
 import monoids._
+import errorhandling._
 
 trait Applicative[F[_]] extends Functor[F] {
 
@@ -37,6 +38,12 @@ trait Applicative[F[_]] extends Functor[F] {
 
   def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] =
     map2(fa, fb)((_, _))
+
+  def product[A,B](fa: F[A], fb: F[B]): F[(A,B)] =
+    map2(fa, fb)((_,_))
+
+  def assoc[A,B,C](p: (A,(B,C))): ((A,B), C) =
+    p match { case (a, (b, c)) => ((a,b), c) }
 
   def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] = ???
 
@@ -96,6 +103,16 @@ object Applicative {
     override def map2[A, B, C](a: Stream[A], b: Stream[B])(// Combine elements pointwise
                                                            f: (A, B) => C): Stream[C] =
       a zip b map f.tupled
+  }
+
+  val optionApplicative = new Applicative[Option] {
+
+    def unit[A](a: => A): Option[A] =
+      Some(a)
+
+    override def map2[A, B, C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] =
+      Option.map2(a, b)(f)
+
   }
 
   def validationApplicative[E] = new Applicative[({type f[x] = Validation[E, x]})#f] {

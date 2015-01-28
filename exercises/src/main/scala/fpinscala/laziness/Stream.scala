@@ -29,13 +29,41 @@ trait Stream[+A] {
       case _ => Stream.empty
     }
 
+  def takeUsingUnfold(n: Int): Stream[A] =
+    unfold((n, this)) {
+      case (i, stream) => stream.uncons match {
+        case Some(c) => if (i > 0) Some(c.h(), (i - 1, c.t())) else None
+        case _ => None
+      }
+    }
+
   def drop(n: Int): Stream[A] = sys.error("todo")
 
-  def takeWhile(p: A => Boolean): Stream[A] = sys.error("todo")
+  def takeWhile(p: A => Boolean): Stream[A] =
+    uncons match {
+      case Some(c) =>
+        if (p(c.h()))
+          Stream.cons(c.h(), c.t().takeWhile(p))
+        else
+          Stream.empty
 
-  def forAll(p: A => Boolean): Boolean = sys.error("todo")
+      case _ => Stream.empty
+    }
 
-  def startsWith[B](s: Stream[B]): Boolean = sys.error("todo")
+  def takeWhileUsingFoldRight(p: A => Boolean): Stream[A] =
+    foldRight(Stream[A]())((a, s) => if (p(a)) Stream.cons(a, s) else Stream.empty)
+
+  def forAll(p: A => Boolean): Boolean =
+    foldRight(true)((a, b) => p(a) && b)
+
+  def startsWith[B](s: Stream[B]): Boolean =
+    s.uncons match {
+      case None => true
+      case Some(c2) => uncons match {
+        case None => false
+        case Some(c1) => (c1.h() == c2.h()) && c1.t().startsWith(c2.t())
+      }
+    }
 
   def uncons: Option[Cons[A]]
 
