@@ -12,6 +12,9 @@ trait Applicative[F[_]] extends Functor[F] {
   def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] =
     apply(apply(unit(f.curried))(fa))(fb)
 
+  def map3[A, B, C, D](fa: F[A], fb: F[B], fc: F[C])(f: (A, B, C) => D): F[D] =
+    apply(apply(apply(unit(f.curried))(fa))(fb))(fc)
+
   def apply[A,B](fab: F[A => B])(fa: F[A]): F[B] =
     map2(fab, fa)((g, a) => g(a))
 
@@ -77,7 +80,7 @@ object Monad {
 
 sealed trait Validation[+E, +A]
 
-case class Failure[E](head: E, tail: Vector[E])
+case class Failure[E](head: E, tail: Vector[E] = Vector.empty)
   extends Validation[E, Nothing]
 
 case class Success[A](a: A) extends Validation[Nothing, A]
