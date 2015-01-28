@@ -197,6 +197,7 @@ trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
 
   def reverse[A](fa: F[A]): F[A] = mapAccum(fa, List.reversed(toList(fa))) {
     case (a, Cons(h, t)) => (h, t)
+    // case (a, _) => (a, Nil)   // match may not be exhaustive
   }._1
 
   override def foldLeft[A,B](fa: F[A])(z: B)(f: (B, A) => B): B =
@@ -211,7 +212,7 @@ trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
 object Traverse {
   val listTraverse = new Traverse[List] {
     override def traverse[G[_],A,B](as: List[A])(f: A => G[B])(implicit G: Applicative[G]): G[List[B]] =
-      as.foldRight(G.unit(List[B]()))((a, z) => G.map2(f(a), z)(_ :: _))
+      List.foldRight(as, G.unit(List[B]()))((a, z) => G.map2(f(a), z)(Cons(_,_)))
   }
 
   val optionTraverse = new Traverse[Option] {
