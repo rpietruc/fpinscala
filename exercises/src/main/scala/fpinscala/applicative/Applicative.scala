@@ -9,47 +9,67 @@ import monoids._
 import errorhandling._
 
 trait Applicative[F[_]] extends Functor[F] {
-
-  def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] =
+  def map2[A, B, C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] =
     apply(apply(unit(f.curried))(fa))(fb)
 
   def map3[A, B, C, D](fa: F[A], fb: F[B], fc: F[C])(f: (A, B, C) => D): F[D] =
     apply(apply(apply(unit(f.curried))(fa))(fb))(fc)
 
-  def apply[A,B](fab: F[A => B])(fa: F[A]): F[B] =
+  def apply[A, B](fab: F[A => B])(fa: F[A]): F[B] =
     map2(fab, fa)((g, a) => g(a))
 
   def unit[A](a: => A): F[A]
 
-  def map[A,B](fa: F[A])(f: A => B): F[B] =
+  def map[A, B](fa: F[A])(f: A => B): F[B] =
     apply(unit(f))(fa)
 
-  def _map[A,B](fa: F[A])(f: A => B): F[B] =
+  def _map[A, B](fa: F[A])(f: A => B): F[B] =
     map2(unit(f), fa)(_(_))
 
   def sequence[A](fas: List[F[A]]): F[List[A]] =
     fas.foldRight(unit(List[A]()))((a, z) => map2(a, z)(_ :: _))
 
-  def traverse[A,B](as: List[A])(f: A => F[B]): F[List[B]] =
+  def traverse[A, B](as: List[A])(f: A => F[B]): F[List[B]] =
     as.foldRight(unit(List[B]()))((a, z) => map2(f(a), z)(_ :: _))
 
   def replicateM[A](n: Int, fa: F[A]): F[List[A]] =
     traverse(Range(0, n).toList)(_ => fa)
 
-  def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] =
+  def factor[A, B](fa: F[A], fb: F[B]): F[(A, B)] =
     map2(fa, fb)((_, _))
 
-  def product[A,B](fa: F[A], fb: F[B]): F[(A,B)] =
-    map2(fa, fb)((_,_))
+  def product[A, B](fa: F[A], fb: F[B]): F[(A, B)] =
+    map2(fa, fb)((_, _))
 
-  def assoc[A,B,C](p: (A,(B,C))): ((A,B), C) =
-    p match { case (a, (b, c)) => ((a,b), c) }
+  def assoc[A, B, C](p: (A, (B, C))): ((A, B), C) =
+    p match {
+      case (a, (b, c)) => ((a, b), c)
+    }
 
-  def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] = ???
+  def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] = {
+    val self = this
+    new Applicative[({type f[x] = (F[x], G[x])})#f] {
+      def unit[A](a: => A) = (self.unit(a), G.unit(a))
 
-  def compose[G[_]](G: Applicative[G]): Applicative[({type f[x] = F[G[x]]})#f] = ???
+      override def apply[A, B](fs: (F[A => B], G[A => B]))(p: (F[A], G[A])) =
+        (self.apply(fs._1)(p._1), G.apply(fs._2)(p._2))
+    }
+  }
 
-  def sequenceMap[K,V](ofa: Map[K,F[V]]): F[Map[K,V]] = ???
+  def compose[G[_]](G: Applicative[G]): Applicative[({type f[x] = F[G[x]]})#f] = {
+    val self = this
+    new Applicative[({type f[x] = F[G[x]]})#f] {
+      def unit[A](a: => A) = self.unit(G.unit(a))
+
+      override def map2[A, B, C](fga: F[G[A]], fgb: F[G[B]])(f: (A, B) => C): F[G[C]] =
+        self.map2(fga, fgb)((fa, fb) => G.map2(fa, fb)(f))
+    }
+  }
+
+  def sequenceMap[K, V](ofa: Map[K, F[V]]): F[Map[K, V]] =
+    ofa.foldRight(unit(Map[K, V]())) {
+      case ((k, fv), fm) => map2(fv, fm)( (v, m) => m.updated(k, v))
+    }
 }
 
 case class Tree[+A](head: A, tail: List[Tree[A]])
