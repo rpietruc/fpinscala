@@ -23,13 +23,17 @@ trait Applicative[F[_]] extends Functor[F] {
   def _map[A,B](fa: F[A])(f: A => B): F[B] =
     map2(unit(f), fa)(_(_))
 
-  def sequence[A](fas: List[F[A]]): F[List[A]] = ???
+  def sequence[A](fas: List[F[A]]): F[List[A]] =
+    fas.foldRight(unit(List[A]()))((a, z) => map2(a, z)(_ :: _))
 
-  def traverse[A,B](as: List[A])(f: A => F[B]): F[List[B]] = ???
+  def traverse[A,B](as: List[A])(f: A => F[B]): F[List[B]] =
+    as.foldRight(unit(List[B]()))((a, z) => map2(f(a), z)(_ :: _))
 
-  def replicateM[A](n: Int, fa: F[A]): F[List[A]] = ???
+  def replicateM[A](n: Int, fa: F[A]): F[List[A]] =
+    traverse(Range(0, n).toList)(_ => fa)
 
-  def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] = ???
+  def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] =
+    map2(fa, fb)((_, _))
 
   def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] = ???
 
@@ -53,7 +57,13 @@ trait Monad[F[_]] extends Applicative[F] {
 }
 
 object Monad {
-  def eitherMonad[E]: Monad[({type f[x] = Either[E, x]})#f] = ???
+  def eitherMonad[E] = new Monad[({type f[x] = Either[E, x]})#f] {
+    def unit[A](a: => A): Either[E, A] = Right(a)
+    def flatMap[A,B](ea: Either[E, A])(f: A => Either[E, A]): Either[E, A] = ea match {
+      case Right(a) => f(a)
+      case Left(e) => Left(e)
+    }
+  }
 
   def stateMonad[S] = new Monad[({type f[x] = State[S, x]})#f] {
     def unit[A](a: => A): State[S, A] = State(s => (a, s))
@@ -80,19 +90,30 @@ object Applicative {
     def unit[A](a: => A): Stream[A] =
       Stream.continually(a) // The infinite, constant stream
 
-    override def map2[A,B,C](a: Stream[A], b: Stream[B])( // Combine elements pointwise
-                    f: (A,B) => C): Stream[C] =
+    override def map2[A, B, C](a: Stream[A], b: Stream[B])(// Combine elements pointwise
+                                                           f: (A, B) => C): Stream[C] =
       a zip b map f.tupled
   }
 
-  def validationApplicative[E]: Applicative[({type f[x] = Validation[E,x]})#f] = ???
+  def validationApplicative[E] = new Applicative[({type f[x] = Validation[E, x]})#f] {
+    def unit[A](a: => A): Validation[E, A] = Success(a)
+
+    override def map2[A, B, C](a: Validation[E, A], b: Validation[E, B])(f: (A, B) => C): Validation[E, C] =
+      (a, b) match {
+        case (Success(a), Success(b)) => Success(f(a, b))
+        case (Failure(ha, ta), Failure(hb, tb)) => Failure(ha, (ta :+ hb) ++ tb)
+        case (f@Failure(h, t), _) => f
+        case (_, f@Failure(h, t)) => f
+      }
+  }
 
   type Const[A, B] = A
 
   implicit def monoidApplicative[M](M: Monoid[M]) =
-    new Applicative[({ type f[x] = Const[M, x] })#f] {
+    new Applicative[({type f[x] = Const[M, x]})#f] {
       def unit[A](a: => A): M = M.zero
-      override def apply[A,B](m1: M)(m2: M): M = M.op(m1, m2)
+
+      override def apply[A, B](m1: M)(m2: M): M = M.op(m1, m2)
     }
 }
 
