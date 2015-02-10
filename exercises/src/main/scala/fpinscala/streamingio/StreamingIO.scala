@@ -289,13 +289,47 @@ object SimpleStreamTransducers {
     /*
      * Exercise 1: Implement `take`, `drop`, `takeWhile`, and `dropWhile`.
      */
-    def take[I](n: Int): Process[I,I] = ???
+    def take[I](n: Int): Process[I,I] = Await {
+      case Some(d) =>
+        if (n > 0)
+          Emit(d, take(n - 1))
+        else
+          Halt()
+      case None => Halt()
+    }
 
-    def drop[I](n: Int): Process[I,I] = ???
+    def drop[I](n: Int): Process[I,I] = {
+      def go(i: Int): Process[I,I] = Await {
+        case Some(d) =>
+          if (i < n)
+            go(i + 1)
+          else
+            Emit(d, go(i + 1))
+        case None => Halt()
+      }
+      go(0)
+    }
 
-    def takeWhile[I](f: I => Boolean): Process[I,I] = ???
+    def takeWhile[I](f: I => Boolean): Process[I,I] =  Await {
+      case Some(d) =>
+        if (f(d))
+          Emit(d, takeWhile(f))
+        else
+          Halt()
+      case None => Halt()
+    }
 
-    def dropWhile[I](f: I => Boolean): Process[I,I] = ???
+    def dropWhile[I](f: I => Boolean): Process[I,I] = {
+      def go(i: Int): Process[I,I] = Await {
+        case Some(d) =>
+          if (f(d))
+            go(i + 1)
+          else
+            Emit(d, go(i + 1))
+        case None => Halt()
+      }
+      go(0)
+    }
 
     /* The identity `Process`, just repeatedly echos its input. */
     def id[I]: Process[I,I] = lift(identity)
@@ -303,7 +337,13 @@ object SimpleStreamTransducers {
     /*
      * Exercise 2: Implement `count`.
      */
-    def count[I]: Process[I,Int] = ???
+    def count[I]: Process[I,Int] = {
+      def go(i: Int): Process[I,Int] = Await {
+        case Some(_) => Emit(i + 1, go(i + 1))
+        case None => Halt()
+      }
+      go(0)
+    }
 
     /* For comparison, here is an explicit recursive implementation. */
     def count2[I]: Process[I,Int] = {
@@ -324,9 +364,9 @@ object SimpleStreamTransducers {
 
     /* Exercise 4: Implement `sum` and `count` in terms of `loop` */
 
-    def sum2: Process[Double,Double] = ???
+    def sum2: Process[Double,Double] = loop(0.0){ case (i, s) => (i + s, i + s) }
 
-    def count3[I]: Process[I,Int] = ???
+    def count3[I]: Process[I,Int] = loop(0){ case (_, i) => (i + 1, i + 1) }
 
     /*
      * Exercise 7: Can you think of a generic combinator that would
